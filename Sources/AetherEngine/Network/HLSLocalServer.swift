@@ -104,6 +104,9 @@ protocol HLSSegmentProvider: AnyObject {
     /// bed, which is how an Atmos stream-copy reached an Atmos-capable receiver as 5.1 PCM.
     var masterAudioChannels: String? { get }
 
+    /// The source's other audio tracks, as URI-less renditions after the playing one (never auto-selected).
+    var masterAlternateAudioRenditions: [AlternateAudioRendition] { get }
+
     /// Native subtitle renditions (#15): one per text track, for the master EXT-X-MEDIA:TYPE=SUBTITLES tags
     /// and the /subs_{N} endpoints. Empty unless prepareNativeSubtitles is on and the cue stores are threaded.
     /// NAMEs must be unique within the group (duplicates collapse AVFoundation's legible options).
@@ -202,6 +205,7 @@ extension HLSSegmentProvider {
     var masterClosedCaptions: String? { nil }
     var masterAudioRendition: (language: String?, name: String)? { nil }
     var masterAudioChannels: String? { nil }
+    var masterAlternateAudioRenditions: [AlternateAudioRendition] { [] }
     var nativeSubtitleRenditions: [(ordinal: Int, language: String?, name: String, isForced: Bool)] { [] }
     var nativeSubtitleDefaultOrdinal: Int { 0 }
     var nativeSubtitleWholeProgram: Bool { false }
@@ -1847,7 +1851,16 @@ final class HLSLocalServer: @unchecked Sendable {
             if let channels = provider.masterAudioChannels {
                 audioAttrs.append("CHANNELS=\"\(channels)\"")
             }
+            // Source order, whichever track plays, so AVKit's menu doesn't reshuffle after a switch.
+            let alternates = provider.masterAlternateAudioRenditions.map { alternate in
+                var attrs = ["TYPE=AUDIO", "GROUP-ID=\"aud\"", "NAME=\"\(alternate.name)\""]
+                if let language = alternate.language { attrs.append("LANGUAGE=\"\(language)\"") }
+                attrs.append(contentsOf: ["DEFAULT=NO", "AUTOSELECT=NO"])
+                return (precedesActive: alternate.precedesActive, tag: "#EXT-X-MEDIA:\(attrs.joined(separator: ","))")
+            }
+            lines.append(contentsOf: alternates.filter(\.precedesActive).map(\.tag))
             lines.append("#EXT-X-MEDIA:\(audioAttrs.joined(separator: ","))")
+            lines.append(contentsOf: alternates.filter { !$0.precedesActive }.map(\.tag))
         }
 
         // #15: native WebVTT subtitle renditions (separate from the A/V variant; in-band timed text is

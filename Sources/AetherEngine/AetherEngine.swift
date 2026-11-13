@@ -7053,7 +7053,10 @@ public final class AetherEngine: ObservableObject {
     /// Item currently loaded into `currentAVPlayer` (#260). Published separately because items are swapped in
     /// place (`replaceCurrentItem`, on every audio-track reload and episode autoplay) without the player itself
     /// changing, so a host holding the item or its timebase gets no signal from `currentAVPlayer` alone.
-    @Published public internal(set) var currentAVPlayerItem: AVPlayerItem?
+    @Published public internal(set) var currentAVPlayerItem: AVPlayerItem? {
+        didSet { observeAudibleSelection() }
+    }
+    var audibleSelectionObservation: NSObjectProtocol?
     private var currentItemObservation: NSKeyValueObservation?
 
     private func observeCurrentItem() {

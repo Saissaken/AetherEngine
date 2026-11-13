@@ -831,6 +831,7 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
     /// AE#458: ISO 639-2/T of the ONE audio track muxed into the variant, for the master's
     /// EXT-X-MEDIA:TYPE=AUDIO tag. Nil for a source whose audio carries no resolvable language.
     private let audioLanguage: String?
+    private let alternateAudioRenditions: [AlternateAudioRendition]
     /// Channel count of the audio track as it is SERVED (the muxer's codecpar, so a bridged track
     /// reports the encoder's layout, not the source's). Drives CHANNELS on the audio rendition.
     private let audioChannelCount: Int?
@@ -1065,6 +1066,7 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
         audioLanguage: String? = nil,
         audioChannelCount: Int? = nil,
         audioIsAtmosStreamCopy: Bool = false,
+        alternateAudioRenditions: [AlternateAudioRendition] = [],
         videoLayout: String? = nil,
         isLive: Bool = false,
         servesSegmentsProgressively: Bool = false,
@@ -1129,6 +1131,7 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
         self.audioLanguage = audioLanguage
         self.audioChannelCount = audioChannelCount
         self.audioIsAtmosStreamCopy = audioIsAtmosStreamCopy
+        self.alternateAudioRenditions = alternateAudioRenditions
         self.videoLayout = videoLayout
         self.restartHandler = restartHandler
         self.unrecoverableGapHandler = unrecoverableGapHandler
@@ -3090,13 +3093,24 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
     /// the only place the master can say "object audio", and without the tag AVFoundation renders the bed.
     var masterAudioRendition: (language: String?, name: String)? {
         if let audioLanguage {
-            let name = Locale.current.localizedString(forIdentifier: audioLanguage) ?? audioLanguage
-            return (language: audioLanguage, name: name)
+            return (language: audioLanguage, name: AlternateAudioRendition.name(language: audioLanguage))
         }
         return audioIsAtmosStreamCopy ? (language: nil, name: Self.untaggedAtmosRenditionName) : nil
     }
 
     static let untaggedAtmosRenditionName = "Dolby Atmos"
+
+    /// The other tracks AVKit's audio menu lists. Only next to a tagged playing rendition: an untagged
+    /// source has no audio group to join, and adding one would reroute it to the master.
+    var masterAlternateAudioRenditions: [AlternateAudioRendition] {
+        masterAudioRendition?.language == nil ? [] : alternateAudioRenditions
+    }
+
+    /// The source stream behind a rendition NAME, the playing one included.
+    func audioStreamIndex(renditionName name: String, active: Int?) -> Int? {
+        if name == masterAudioRendition?.name { return active }
+        return masterAlternateAudioRenditions.first { $0.name == name }?.streamIndex
+    }
 
     /// Apple HLS Authoring Spec 2.13 ("CHANNELS ... MUST be present") plus Dolby's DD+ Online
     /// Delivery Kit: the value is the count of decodable objects, a slash, then `JOC`. 16 is the

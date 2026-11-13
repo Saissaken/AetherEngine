@@ -2334,6 +2334,13 @@ public final class HLSVideoEngine: @unchecked Sendable {
             audioLanguage: servedAudioLanguage,
             audioChannelCount: servedAudioChannels,
             audioIsAtmosStreamCopy: servedAudioIsAtmosStreamCopy,
+            // A demuxed-audio companion's tracks are not the source's switchable ones.
+            alternateAudioRenditions: audioDem === dem ? servedAudioLanguage.map {
+                AlternateAudioRendition.list(
+                    tracks: dem.audioTrackInfos(), active: Int(audioStreamIndex),
+                    activeName: AlternateAudioRendition.name(language: $0),
+                    skipping: Set(undecodableAudioStreamIndices.map(Int.init)))
+            } ?? [] : [],
             videoLayout: stereoSignal != nil ? StereoVideoSignal.videoLayout : nil,
             isLive: isLiveSession,
             servesSegmentsProgressively: servesSegmentsProgressively,
