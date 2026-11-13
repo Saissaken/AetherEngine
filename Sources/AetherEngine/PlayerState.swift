@@ -774,6 +774,9 @@ public struct LoadOptions: Sendable, Equatable {
     /// Declare a mov_text track in the init moov so text subtitles survive PiP / AirPlay / external display via AVMediaSelection. Bitmap codecs (PGS / DVB / DVD) excluded automatically. Default `false` (#55).
     public var prepareNativeSubtitles: Bool = false
 
+    /// List every subtitle track (text and image) in AVKit's own Subtitles menu, then these host entries, as SUBTITLES renditions with blank WebVTT (an entry in a language a track has is left out, since AVKit labels options by language): the host keeps drawing the cues (its overlay), AVKit only offers the choice. A pick on a track selects it through `selectSubtitleTrack(index:)`, Off clears it, and every pick is published on `subtitleMenuPicks` (an entry is the host's to fetch). `reflectSubtitleMenu(_:)` shows the host's own choice in the menu. Native route only; ignored with `prepareNativeSubtitles`. Default `nil` (off).
+    public var subtitleMenuEntries: [SubtitleMenuEntry]? = nil
+
     /// Start the native WebVTT subtitle readers eagerly at load (instead of lazily on `setNativeSubtitleSelected`), so the `/subs_N_M.vtt` segments are already populated when AVKit fetches them under a host-independent selection (e.g. an `EXT-X-MEDIA ... DEFAULT=YES` rendition that AVKit auto-selects). Equivalent to a fully-populated static VOD subtitle file. Only meaningful with `prepareNativeSubtitles`. Default `false` (Sodalite#32 probe).
     public var eagerNativeSubtitleReaders: Bool = false
 

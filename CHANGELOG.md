@@ -16,6 +16,10 @@ the public-API contract.
   URI-less `EXT-X-MEDIA:TYPE=AUDIO` renditions (`DEFAULT=NO,AUTOSELECT=NO`, source order). Picking one in AVKit
   switches through `selectAudioTrack(index:)`, keeping position. `nativeAudioRenditionsServed` tells a host it
   needs no audio menu of its own.
+- **AVKit's Subtitles menu lists every subtitle track and host entries.** With `LoadOptions.subtitleMenuEntries`,
+  the master declares each text and image track and each `SubtitleMenuEntry` as a blank-WebVTT SUBTITLES rendition.
+  A pick selects the track (or clears it for Off) and is published on `subtitleMenuPicks`; `reflectSubtitleMenu(_:)`
+  shows the host's choice. `subtitleMenuRenditionsServed` tells a host it needs no subtitle button of its own.
 
 ## [7.51.0] - 2026-10-28
 

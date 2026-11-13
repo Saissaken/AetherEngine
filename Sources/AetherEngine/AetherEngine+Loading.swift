@@ -1277,6 +1277,8 @@ extension AetherEngine {
         // Sodalite#32 Phase 2: tap decoders honor the host's markup preference (overlay renders styled
         // ASS; the WebVTT rendition strips at serve). #112 rework: the overlay itself is fed by the
         // packet-store drainer, not by tap-event forwarding.
+        session.subtitleMenuRenditionsForSession = loadedOptions.prepareNativeSubtitles ? [] : loadedOptions.subtitleMenuEntries
+            .map { SubtitleMenuRendition.list(tracks: subtitleTracks, entries: $0) } ?? []
         session.preserveASSMarkupForSubtitleTap = loadedOptions.preserveASSMarkup
         session.teletextPageForSubtitleTap = loadedOptions.teletextPage
         EngineLog.emit("[AetherEngine] native subtitles: prepare=\(loadedOptions.prepareNativeSubtitles) eager=\(loadedOptions.eagerNativeSubtitleReaders) textTracks=\(nativeSubtitleTrackTable.count) bitmapOCR=\(bitmapEntries.count) enable=\(session.enableNativeSubtitleTrackForSession)", category: .engine)
@@ -1968,7 +1970,8 @@ extension AetherEngine {
                       audioIsAtmosStreamCopy: nativeVideoSession?.audioIsAtmosStreamCopy == true,
                       nativeVideoFrameDiagnostics: loadedOptions.nativeVideoFrameDiagnostics,
                       nativeVideoFrameRecovery: loadedOptions.nativeVideoFrameRecovery))
-        forceNativeLegibleDeselectedUntilHostSelects()
+        // The subtitle menu's renditions are the user's to pick: no pin against them.
+        if session.subtitleMenuRenditionsForSession.isEmpty { forceNativeLegibleDeselectedUntilHostSelects() }
         // Sodalite#175: from the session's own pick, since a track-switch reload has no active index yet.
         let sessionAudioPick = nativeVideoSession.map(\.activeAudioSourceStreamIndex).flatMap { $0 >= 0 ? Int($0) : nil }
         let audioPick = sessionAudioPick ?? audioSourceStreamIndex.flatMap { Int(exactly: $0) } ?? activeAudioTrackIndex

@@ -1704,6 +1704,9 @@ public final class AetherEngine: ObservableObject {
     /// wants the behaviour renders the request itself: it knows which of the three triggers plausibly
     /// fired and which of its own tracks matches. No replay; subscribe per session.
     public let systemCaptionRequest = PassthroughSubject<SystemCaptionRequest, Never>()
+    /// Every pick in AVKit's Subtitles menu while it lists `LoadOptions.subtitleMenuEntries`; nil is Off.
+    /// A track is already selected when this fires; an entry is the host's to fetch.
+    public let subtitleMenuPicks = PassthroughSubject<SubtitleMenuPick?, Never>()
 
     /// Fires when a native session AVPlayer refused on its merits is rebuilt on the software path
     /// (AE#561), carrying the failure the rebuild absorbed. Without it a host sees only `videoRoute`
@@ -7054,9 +7057,12 @@ public final class AetherEngine: ObservableObject {
     /// place (`replaceCurrentItem`, on every audio-track reload and episode autoplay) without the player itself
     /// changing, so a host holding the item or its timebase gets no signal from `currentAVPlayer` alone.
     @Published public internal(set) var currentAVPlayerItem: AVPlayerItem? {
-        didSet { observeAudibleSelection() }
+        didSet { observeAudibleSelection(); observeLegibleSelection() }
     }
     var audibleSelectionObservation: NSObjectProtocol?
+    var legibleSelectionObservation: NSObjectProtocol?
+    /// The subtitle menu's last pick (host's or AVKit's), carried onto the next item (an audio switch reloads).
+    var lastSubtitleMenuPick: SubtitleMenuPick?
     private var currentItemObservation: NSKeyValueObservation?
 
     private func observeCurrentItem() {

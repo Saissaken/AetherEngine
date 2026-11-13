@@ -256,6 +256,9 @@ public final class HLSVideoEngine: @unchecked Sendable {
     /// Set before `start()`.
     var enableNativeSubtitleTrackForSession: Bool = false
 
+    /// Blank SUBTITLES renditions for AVKit's menu (`LoadOptions.subtitleMenuEntries`). Set before `start()`.
+    var subtitleMenuRenditionsForSession: [SubtitleMenuRendition] = []
+
     /// AE#682: the host asked for an I-frame rendition. Whether the session can serve one is decided
     /// in `start()` and read back as `iFrameRenditionVerdict`.
     var iFramePlaylistRequested = false
@@ -2349,6 +2352,7 @@ public final class HLSVideoEngine: @unchecked Sendable {
             audioIsAtmosStreamCopy: servedAudioIsAtmosStreamCopy,
             alternateAudioRenditions: alternateAudioRenditions,
             untaggedAudioName: untaggedAudioName,
+            subtitleMenuRenditions: subtitleMenuRenditionsForSession,
             videoLayout: stereoSignal != nil ? StereoVideoSignal.videoLayout : nil,
             isLive: isLiveSession,
             servesSegmentsProgressively: servesSegmentsProgressively,
@@ -2542,6 +2546,7 @@ public final class HLSVideoEngine: @unchecked Sendable {
         stillLadderComplete = false
         stillLadderLock.unlock()
         let hasNativeSubs = enableNativeSubtitleTrackForSession && !nativeSubtitleCueStoresForSession.isEmpty
+            || !subtitleMenuRenditionsForSession.isEmpty
         // AE#187: tvOS HW HEVC needs the codec advertised in a master's CODECS attribute; a bare media
         // playlist (H.264 is fine media-direct) fails the item with tracks count=0 / -12848. Scope to
         // tvOS: iOS/macOS build the HEVC track from the init hvcC media-direct and are left unperturbed.

@@ -834,6 +834,7 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
     private let alternateAudioRenditions: [AlternateAudioRendition]
     /// NAME of the playing track when it is untagged, so it can join a group with alternates.
     private let untaggedAudioName: String?
+    private let subtitleMenuRenditions: [SubtitleMenuRendition]
     /// Channel count of the audio track as it is SERVED (the muxer's codecpar, so a bridged track
     /// reports the encoder's layout, not the source's). Drives CHANNELS on the audio rendition.
     private let audioChannelCount: Int?
@@ -1070,6 +1071,7 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
         audioIsAtmosStreamCopy: Bool = false,
         alternateAudioRenditions: [AlternateAudioRendition] = [],
         untaggedAudioName: String? = nil,
+        subtitleMenuRenditions: [SubtitleMenuRendition] = [],
         videoLayout: String? = nil,
         isLive: Bool = false,
         servesSegmentsProgressively: Bool = false,
@@ -1136,6 +1138,7 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
         self.audioIsAtmosStreamCopy = audioIsAtmosStreamCopy
         self.alternateAudioRenditions = alternateAudioRenditions
         self.untaggedAudioName = untaggedAudioName
+        self.subtitleMenuRenditions = subtitleMenuRenditions
         self.videoLayout = videoLayout
         self.restartHandler = restartHandler
         self.unrecoverableGapHandler = unrecoverableGapHandler
@@ -3137,6 +3140,15 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
     /// can state without that index. docs/formats.md quotes this string, and
     /// `DocumentedConstantsTests` holds the two together.
     static let atmosChannelsAttribute = "16/JOC"
+
+    // MARK: - Subtitle menu renditions
+
+    var masterSubtitleMenuRenditions: [SubtitleMenuRendition] { subtitleMenuRenditions }
+
+    /// The track or host entry behind a SUBTITLES rendition NAME.
+    func subtitleMenuTarget(renditionName name: String) -> SubtitleMenuPick? {
+        subtitleMenuRenditions.first { $0.name == name }?.target
+    }
 
     // MARK: - Native subtitle renditions (#15)
 

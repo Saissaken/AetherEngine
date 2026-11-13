@@ -107,6 +107,10 @@ protocol HLSSegmentProvider: AnyObject {
     /// The source's other audio tracks, as URI-less renditions after the playing one (never auto-selected).
     var masterAlternateAudioRenditions: [AlternateAudioRendition] { get }
 
+    /// Blank SUBTITLES renditions for AVKit's menu (`LoadOptions.subtitleMenuEntries`); they replace
+    /// `nativeSubtitleRenditions` in the master when both are present.
+    var masterSubtitleMenuRenditions: [SubtitleMenuRendition] { get }
+
     /// Native subtitle renditions (#15): one per text track, for the master EXT-X-MEDIA:TYPE=SUBTITLES tags
     /// and the /subs_{N} endpoints. Empty unless prepareNativeSubtitles is on and the cue stores are threaded.
     /// NAMEs must be unique within the group (duplicates collapse AVFoundation's legible options).
@@ -206,6 +210,7 @@ extension HLSSegmentProvider {
     var masterAudioRendition: (language: String?, name: String)? { nil }
     var masterAudioChannels: String? { nil }
     var masterAlternateAudioRenditions: [AlternateAudioRendition] { [] }
+    var masterSubtitleMenuRenditions: [SubtitleMenuRendition] { [] }
     var nativeSubtitleRenditions: [(ordinal: Int, language: String?, name: String, isForced: Bool)] { [] }
     var nativeSubtitleDefaultOrdinal: Int { 0 }
     var nativeSubtitleWholeProgram: Bool { false }
@@ -1214,6 +1219,18 @@ final class HLSLocalServer: @unchecked Sendable {
                            data: Data(body.utf8),
                            contentType: "application/vnd.apple.mpegurl")
 
+        case let p where p.hasPrefix("/menu_") && p.hasSuffix(".m3u8"):
+            // A subtitle menu rendition: AVKit lists it, the host draws the cues, so its WebVTT is blank.
+            guard let prov = provider else {
+                return send404(fd: fd, path: normalizedPath, reason: "no provider for a subtitle menu playlist")
+            }
+            return send200(fd: fd, path: normalizedPath,
+                           data: Data(Self.buildBlankSubtitlePlaylistText(provider: prov).utf8),
+                           contentType: "application/vnd.apple.mpegurl")
+
+        case "/menu_blank.vtt":
+            return send200(fd: fd, path: normalizedPath, data: Data("WEBVTT\n\n".utf8), contentType: "text/vtt")
+
         case let p where p.hasPrefix("/subs_") && p.hasSuffix(".m3u8"):
             // #15: windowed subtitle media playlist, one WebVTT segment per video segment.
             guard let parsed = Self.parseSubsPath(p), let prov = provider else {
@@ -1868,7 +1885,14 @@ final class HLSLocalServer: @unchecked Sendable {
         // Sodalite#32: DEFAULT=NO,AUTOSELECT=NO so AVKit never auto-selects a subtitle rendition in fullscreen
         // (the on-frame overlay owns fullscreen subtitles). The host explicitly selects the matching rendition
         // only on PiP entry and deselects it on PiP exit, so the two never double up.
-        let subRenditions = provider.nativeSubtitleRenditions
+        let menuRenditions = provider.masterSubtitleMenuRenditions
+        for (i, r) in menuRenditions.enumerated() {
+            var mediaAttrs = ["TYPE=SUBTITLES", "GROUP-ID=\"subs\"", "NAME=\"\(r.name)\""]
+            if let lang = r.language { mediaAttrs.append("LANGUAGE=\"\(lang)\"") }
+            mediaAttrs.append(contentsOf: ["DEFAULT=NO", "AUTOSELECT=NO", "URI=\"menu_\(i).m3u8\""])
+            lines.append("#EXT-X-MEDIA:\(mediaAttrs.joined(separator: ","))")
+        }
+        let subRenditions = menuRenditions.isEmpty ? provider.nativeSubtitleRenditions : []
         for r in subRenditions {
             var mediaAttrs = ["TYPE=SUBTITLES", "GROUP-ID=\"subs\"", "NAME=\"\(r.name)\""]
             if let lang = r.language { mediaAttrs.append("LANGUAGE=\"\(lang)\"") }
@@ -1883,7 +1907,7 @@ final class HLSLocalServer: @unchecked Sendable {
             mediaAttrs.append("URI=\"subs_\(r.ordinal).m3u8\"")
             lines.append("#EXT-X-MEDIA:\(mediaAttrs.joined(separator: ","))")
         }
-        if !subRenditions.isEmpty {
+        if !subRenditions.isEmpty || !menuRenditions.isEmpty {
             streamInfAttrs.append("SUBTITLES=\"subs\"")
         }
         lines.append("#EXT-X-STREAM-INF:\(streamInfAttrs.joined(separator: ","))")
@@ -1912,6 +1936,17 @@ final class HLSLocalServer: @unchecked Sendable {
             lines.append("#EXT-X-I-FRAME-STREAM-INF:\(iFrameAttrs.joined(separator: ","))")
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// A subtitle menu rendition's playlist: one blank WebVTT segment over the whole program, the
+    /// whole-program shape AVPlayer accepts for a sideloaded rendition (Sodalite#32).
+    static func buildBlankSubtitlePlaylistText(provider: HLSSegmentProvider) -> String {
+        var total = 0.0
+        for i in 0..<provider.segmentCount { total += provider.segmentDuration(at: i) }
+        let target = LiveEdgePolicy.targetDurationSeconds(maxSegmentDuration: total, cutTargetSeconds: nil, cadenceFloorSeconds: nil)
+        return ["#EXTM3U", "#EXT-X-VERSION:7", "#EXT-X-TARGETDURATION:\(target)", "#EXT-X-MEDIA-SEQUENCE:0",
+                "#EXT-X-PLAYLIST-TYPE:VOD", "#EXTINF:\(String(format: "%.3f", total))", "menu_blank.vtt",
+                "#EXT-X-ENDLIST"].joined(separator: "\n") + "\n"
     }
 
     /// The video entry of a master CODECS list. An I-frame variant carries no audio, and a CODECS
