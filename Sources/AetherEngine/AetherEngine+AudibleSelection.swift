@@ -19,7 +19,10 @@ extension AetherEngine {
         audibleSelectionObservation = NotificationCenter.default.addObserver(
             forName: AVPlayerItem.mediaSelectionDidChangeNotification, object: item, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in await self?.followAudibleSelection(of: item) }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Task { await self.followAudibleSelection(of: item) }
+            }
         }
     }
 

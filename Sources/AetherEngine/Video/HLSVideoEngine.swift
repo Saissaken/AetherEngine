@@ -2302,6 +2302,19 @@ public final class HLSVideoEngine: @unchecked Sendable {
         }
         let servedAudioIsAtmosStreamCopy =
             audioIsAtmosStreamCopy && audioDelivery == .streamCopy && savedAudioConfig != nil
+        // AVKit's audio menu lists the source's other tracks next to the served one. Not for a
+        // demuxed-audio companion, whose tracks are not the source's switchable ones.
+        let activeAudioTrack = dem.audioTrackInfos().first { $0.id == Int(audioStreamIndex) }
+        let untaggedAudioName = servedAudioLanguage == nil && !servedAudioIsAtmosStreamCopy
+            ? AlternateAudioRendition.name(untagged: activeAudioTrack, id: Int(audioStreamIndex)) : nil
+        var alternateAudioRenditions: [AlternateAudioRendition] = []
+        if savedAudioConfig != nil, audioDem === dem {
+            alternateAudioRenditions = AlternateAudioRendition.list(
+                tracks: dem.audioTrackInfos(), active: Int(audioStreamIndex),
+                activeName: servedAudioLanguage.map(AlternateAudioRendition.name(language:))
+                    ?? untaggedAudioName ?? VideoSegmentProvider.untaggedAtmosRenditionName,
+                skipping: Set(undecodableAudioStreamIndices.map(Int.init)))
+        }
 
         // 7. Wire provider, server, and URL.
         let manifestCodecs = audioHLSCodecs.map { "\(primaryCodecs),\($0)" } ?? primaryCodecs
@@ -2334,13 +2347,8 @@ public final class HLSVideoEngine: @unchecked Sendable {
             audioLanguage: servedAudioLanguage,
             audioChannelCount: servedAudioChannels,
             audioIsAtmosStreamCopy: servedAudioIsAtmosStreamCopy,
-            // A demuxed-audio companion's tracks are not the source's switchable ones.
-            alternateAudioRenditions: audioDem === dem ? servedAudioLanguage.map {
-                AlternateAudioRendition.list(
-                    tracks: dem.audioTrackInfos(), active: Int(audioStreamIndex),
-                    activeName: AlternateAudioRendition.name(language: $0),
-                    skipping: Set(undecodableAudioStreamIndices.map(Int.init)))
-            } ?? [] : [],
+            alternateAudioRenditions: alternateAudioRenditions,
+            untaggedAudioName: untaggedAudioName,
             videoLayout: stereoSignal != nil ? StereoVideoSignal.videoLayout : nil,
             isLive: isLiveSession,
             servesSegmentsProgressively: servesSegmentsProgressively,
@@ -2550,7 +2558,8 @@ public final class HLSVideoEngine: @unchecked Sendable {
             builtInPanelEngagesOnDemand: Self.builtInPanelEngagesOnDemand,
             frameRateKnown: frameRate != nil,
             videoCodecNeedsMasterSignaling: videoCodecNeedsMasterSignaling,
-            hasAudioRendition: servedAudioLanguage != nil || servedAudioIsAtmosStreamCopy,
+            hasAudioRendition: servedAudioLanguage != nil || servedAudioIsAtmosStreamCopy
+                || !prepared.provider.masterAlternateAudioRenditions.isEmpty,
             hasIFrameRendition: iFrameCandidate == .served))
         let resolvedURL: URL? = useMasterPlaylist
             ? srv.playlistURL

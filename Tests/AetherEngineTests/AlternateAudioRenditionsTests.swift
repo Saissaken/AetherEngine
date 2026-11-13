@@ -6,7 +6,8 @@ import Foundation
 /// them all. Picking one there is turned into the engine's usual reload (`selectAudioTrack`).
 struct AlternateAudioRenditionsTests {
 
-    private func provider(language: String?, alternates: [AlternateAudioRendition]) -> VideoSegmentProvider {
+    private func provider(language: String?, alternates: [AlternateAudioRendition],
+                          untaggedName: String? = nil) -> VideoSegmentProvider {
         VideoSegmentProvider(
             cache: SegmentCache(forwardWindow: 4, backwardWindow: 4),
             segments: [HLSVideoEngine.Segment(startPts: 0, endPts: 4000, startSeconds: 0, durationSeconds: 4)],
@@ -15,7 +16,8 @@ struct AlternateAudioRenditionsTests {
             sourceBitrate: 5_000_000,
             audioLanguage: language,
             audioChannelCount: 2,
-            alternateAudioRenditions: alternates
+            alternateAudioRenditions: alternates,
+            untaggedAudioName: untaggedName
         )
     }
 
@@ -44,11 +46,24 @@ struct AlternateAudioRenditionsTests {
             == ["eng", "active", "fra"])
     }
 
-    @Test("an untagged source keeps its master without an audio group")
-    func untaggedActiveListsNothing() {
-        let master = HLSLocalServer.buildMasterPlaylistText(provider: provider(
+    @Test("an untagged playing track still joins the group when there are others to list")
+    func untaggedActiveJoinsGroup() {
+        let p = provider(
             language: nil,
-            alternates: [AlternateAudioRendition(streamIndex: 2, language: "spa", name: "Spanish", precedesActive: false)]))
+            alternates: [AlternateAudioRendition(streamIndex: 2, language: "spa", name: "Spanish", precedesActive: false)],
+            untaggedName: "Track 1")
+        let tags = audioTags(HLSLocalServer.buildMasterPlaylistText(provider: p))
+        #expect(tags.count == 2)
+        #expect(tags[0].contains("NAME=\"Track 1\",DEFAULT=YES"))
+        #expect(p.audioStreamIndex(renditionName: "Track 1", active: 1) == 1)
+        #expect(p.audioStreamIndex(renditionName: "Spanish", active: 1) == 2)
+        #expect(p.audioStreamIndex(renditionName: "French", active: 1) == nil)
+    }
+
+    @Test("a single untagged track keeps the master without an audio group")
+    func untaggedAloneListsNothing() {
+        let master = HLSLocalServer.buildMasterPlaylistText(provider: provider(
+            language: nil, alternates: [], untaggedName: "Track 1"))
         #expect(audioTags(master).isEmpty)
     }
 

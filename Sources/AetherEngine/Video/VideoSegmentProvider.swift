@@ -832,6 +832,8 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
     /// EXT-X-MEDIA:TYPE=AUDIO tag. Nil for a source whose audio carries no resolvable language.
     private let audioLanguage: String?
     private let alternateAudioRenditions: [AlternateAudioRendition]
+    /// NAME of the playing track when it is untagged, so it can join a group with alternates.
+    private let untaggedAudioName: String?
     /// Channel count of the audio track as it is SERVED (the muxer's codecpar, so a bridged track
     /// reports the encoder's layout, not the source's). Drives CHANNELS on the audio rendition.
     private let audioChannelCount: Int?
@@ -1067,6 +1069,7 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
         audioChannelCount: Int? = nil,
         audioIsAtmosStreamCopy: Bool = false,
         alternateAudioRenditions: [AlternateAudioRendition] = [],
+        untaggedAudioName: String? = nil,
         videoLayout: String? = nil,
         isLive: Bool = false,
         servesSegmentsProgressively: Bool = false,
@@ -1132,6 +1135,7 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
         self.audioChannelCount = audioChannelCount
         self.audioIsAtmosStreamCopy = audioIsAtmosStreamCopy
         self.alternateAudioRenditions = alternateAudioRenditions
+        self.untaggedAudioName = untaggedAudioName
         self.videoLayout = videoLayout
         self.restartHandler = restartHandler
         self.unrecoverableGapHandler = unrecoverableGapHandler
@@ -3095,15 +3099,16 @@ final class VideoSegmentProvider: HLSSegmentProvider, @unchecked Sendable {
         if let audioLanguage {
             return (language: audioLanguage, name: AlternateAudioRendition.name(language: audioLanguage))
         }
-        return audioIsAtmosStreamCopy ? (language: nil, name: Self.untaggedAtmosRenditionName) : nil
+        if audioIsAtmosStreamCopy { return (language: nil, name: Self.untaggedAtmosRenditionName) }
+        // With other tracks to list, an untagged one still needs a rendition, or AVKit lists none of them.
+        return alternateAudioRenditions.isEmpty ? nil : untaggedAudioName.map { (language: nil, name: $0) }
     }
 
     static let untaggedAtmosRenditionName = "Dolby Atmos"
 
-    /// The other tracks AVKit's audio menu lists. Only next to a tagged playing rendition: an untagged
-    /// source has no audio group to join, and adding one would reroute it to the master.
+    /// The other tracks AVKit's audio menu lists, next to the playing rendition.
     var masterAlternateAudioRenditions: [AlternateAudioRendition] {
-        masterAudioRendition?.language == nil ? [] : alternateAudioRenditions
+        masterAudioRendition == nil ? [] : alternateAudioRenditions
     }
 
     /// The source stream behind a rendition NAME, the playing one included.

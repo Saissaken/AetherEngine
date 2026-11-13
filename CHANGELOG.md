@@ -10,7 +10,12 @@ the public-API contract.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **AVKit's audio menu lists every audio track.** The master declares the source's other decodable tracks as
+  URI-less `EXT-X-MEDIA:TYPE=AUDIO` renditions (`DEFAULT=NO,AUTOSELECT=NO`, source order). Picking one in AVKit
+  switches through `selectAudioTrack(index:)`, keeping position. `nativeAudioRenditionsServed` tells a host it
+  needs no audio menu of its own.
 
 ## [7.51.0] - 2026-10-28
 

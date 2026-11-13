@@ -20,6 +20,12 @@ struct AlternateAudioRendition: Equatable, Sendable {
         Locale.current.localizedString(forIdentifier: language) ?? language
     }
 
+    /// The NAME for an untagged track: its own title, else its number.
+    static func name(untagged track: TrackInfo?, id: Int) -> String {
+        guard let track, !track.name.isEmpty else { return "Track \(id)" }
+        return track.name.replacingOccurrences(of: "\"", with: "'")
+    }
+
     /// Every audio track but the playing one and the ones the engine can't serve, named apart from
     /// `activeName` and each other.
     static func list(tracks: [TrackInfo], active: Int, activeName: String, skipping: Set<Int>) -> [Self] {
@@ -28,8 +34,7 @@ struct AlternateAudioRendition: Equatable, Sendable {
         return tracks.enumerated().filter { $0.element.id != active && !skipping.contains($0.element.id) }
             .map { position, track in
                 let language = AudioLanguageMap.iso639_2T(forSourceLanguage: track.language)
-                let base = (language.map(name(language:)) ?? (track.name.isEmpty ? "Track \(track.id)" : track.name))
-                    .replacingOccurrences(of: "\"", with: "'")
+                let base = language.map(name(language:)) ?? name(untagged: track, id: track.id)
                 var unique = base
                 var n = 2
                 while used.contains(unique) { unique = "\(base) \(n)"; n += 1 }
